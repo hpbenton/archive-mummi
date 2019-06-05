@@ -94,7 +94,7 @@ def cli_options(opts):
         elif o in ("-f", "--infile"): optdict['infile'] = a
         elif o in ("-o", "--output"):
             optdict['output'] = a.replace('.csv', '')
-            optdict['outdir'] = '.'.join([time_stamp, a.replace('.csv', '')])
+            optdict['outdir'] = a.replace('.csv', '') + '-' + time_stamp
             
         elif o in ("-p", "--permutation"): optdict['permutation'] = int(a)
         else: print("Unsupported argument ", o)

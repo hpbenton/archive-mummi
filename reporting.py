@@ -351,7 +351,7 @@ class LocalExporting:
             resultstr.append([str(x) for x in [P.name, P.overlap_size, P.EmpSize, P.adjusted_p]]
                              + [','.join(empCpds), ','.join(['/'.join(x) for x in cpds]), '$'.join(['/'.join(x) for x in names]) ])
 
-        outfile = os.path.join(self.tabledir, "mcg_pathwayanalysis_") + self.data.paradict['output']
+        outfile = os.path.join(self.tabledir, "mcg_pathwayanalysis_")
         # write .tsv
         f =  open(outfile + '.tsv', 'wb')
         writer = csv.writer( f, delimiter='\t' )
