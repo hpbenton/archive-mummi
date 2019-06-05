@@ -17,6 +17,7 @@ d) Web based presentation
 @author: Shuzhao Li, Andrei Todor
 
 '''
+from __future__ import absolute_import
 
 
 import os, csv, xlsxwriter, logging
@@ -269,7 +270,7 @@ class LocalExporting:
 
         Web export may avoid static file linking, as it's tricky to be correct on local computers
         '''
-        self.rootdir = os.path.join(self.data.paradict['workdir'], self.data.paradict['outdir'])
+        self.rootdir = os.path.join(self.data.paradict['outdir'], self.data.paradict['workdir'])
         os.mkdir(self.rootdir)
         self.tabledir, self.figuredir, self.moduledir = os.path.join(
                                                 self.rootdir, 'tables'), os.path.join(

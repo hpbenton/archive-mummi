@@ -27,6 +27,7 @@ metabolicModels = {
 
 @author: Shuzhao Li
 '''
+from __future__ import absolute_import
 from JSON_metabolicModels import metabolicModels
 import numpy as np
 import networkx as nx
@@ -218,7 +219,7 @@ class Mmodule:
         create an identifier using nodes in sorted order
         '''
         Nodes = self.graph.nodes()
-        Nodes.sort()
+        #Nodes.sort()
         return ''.join(Nodes)
 
     def export_network_txt(self, met_model, filename):

@@ -24,6 +24,8 @@ Only the default metabolic model (human_model_mfn) and a worm model are ported t
 This is intended to be the branch of command line version. 
 A server version is upcoming, where metabolic models are stored a separate online database.
 '''
+from __future__ import print_function
+from __future__ import absolute_import
 
 
 from functional_analysis import *
@@ -32,7 +34,7 @@ from reporting import *
 
 def main():
     
-    print fishlogo
+    print(fishlogo)
     print ( "mummichog version %s \n" %VERSION )
     optdict = dispatcher()
 

@@ -19,6 +19,7 @@ Separating I/O, to be used for both web apps and desktop apps
 
 @author: Shuzhao Li, Andrei Todor
 '''
+from __future__ import absolute_import
 
 import logging, random, itertools
 from scipy import stats
@@ -237,7 +238,7 @@ class PathwayAnalysis:
             
         result = [(P.adjusted_p, P) for P in 
                                         self.get_adjust_p_by_permutations(FET_tested_pathways)]
-        result.sort()
+        result.sort(key=lambda x:x[0])
         self.resultListOfPathways = [x[1] for x in result]
 
     
@@ -656,7 +657,7 @@ class ActivityNetwork:
         connected_component_subgraphs likely to return sorted subgraphs. Just to be sure here.
         '''
         connected = [(len(x),x) for x in nx.connected_component_subgraphs(an)]
-        connected.sort(reverse=True)
+        #connected.sort(reverse=True)
         return connected[0][1]
         
     def __get_ave_connections__(self, N):

@@ -13,6 +13,7 @@ configuration and utility functions of mummichog
 @author: Shuzhao Li
 
 '''
+from __future__ import print_function
 
 VERSION = '2.0.7-beta-20180423' 
 RELEASE = False
@@ -208,11 +209,11 @@ def adduct_function(mw, mode):
                ]
 
     elif mode == 'neutral':
-        print "Neutral mode of instrumentation is not supported."
+        print("Neutral mode of instrumentation is not supported.")
         return []
     
     else:
-        print "Unrecognized mode of instrumentation."
+        print("Unrecognized mode of instrumentation.")
         return []
 
 # weighting function of isotopic derivatives and adducts
