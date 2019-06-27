@@ -54,7 +54,7 @@ def main():
     PA = PathwayAnalysis(mixedNetwork.model.metabolic_pathways, mixedNetwork)
     PA.cpd_enrich_test()
     
-    # Module analysis, getting a list of Mmodule instances
+    # Module analysis, getting a list of module instances
     MA = ModularAnalysis(mixedNetwork)
     MA.dispatch()
     

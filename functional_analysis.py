@@ -71,7 +71,7 @@ class PathwayAnalysis:
         self.TrioList = self.mixedNetwork.TrioList
         self.significant_EmpiricalCompounds = set([x[1] for x in self.TrioList])
         
-        self.ListOfEmpiricalCompounds = mixedNetwork.ListOfEmpiricalCompounds
+        self.ListOfEmpiricalCompounds = mixedNetwork.ListOfEmpiricalCompoundsMerge
         self.total_number_EmpiricalCompounds = len(self.ListOfEmpiricalCompounds)
 
         print_and_loginfo("\nPathway Analysis...")
@@ -211,6 +211,7 @@ class PathwayAnalysis:
         qset = self.significant_EmpiricalCompounds
         query_set_size = len(qset)
         total_feature_num = self.total_number_EmpiricalCompounds
+        print("cpd_enrich_test pathwayAnalysis")
         
         print_and_loginfo("Query number of significant compounds = %d compounds" %query_set_size)
         

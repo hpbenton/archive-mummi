@@ -20,6 +20,7 @@ import StringIO
 
 import matplotlib.pyplot as plt
 
+from os import listdir
 from config import *
 from models import *
 
@@ -50,7 +51,7 @@ def cli_options(opts):
     time_stamp = str(time.time())
     
     optdict = {
-               'cutoff': 0,
+               'cutoff': [0,0],
                
                'network': 'human_mfn',
                'modeling': None,
@@ -77,7 +78,7 @@ def cli_options(opts):
     # update default from user argument
     for o, a in opts:
         if o in ("-a", "--analysis"): optdict['analysis'] = a
-        elif o in ("-c", "--cutoff"): optdict['cutoff'] = float(a)
+        elif o in ("-c", "--cutoff"): optdict['cutoff'] = a ## this should be changed to allow for multi
         elif o in ("-t", "--targeted"): optdict['targeted'] = booleandict.get(a, False)
         elif o in ("-n", "--network"): optdict['network'] = a
         elif o in ("-z", "--force_primary_ion"): optdict['force_primary_ion'] = booleandict.get(a, True)
@@ -113,7 +114,7 @@ def dispatcher():
     Usage example:
     python main.py -f mydata.txt -o myoutput
     
-        -f, --infile: single file as input, 
+        -f, --infiles: directory where the files are,
               containing all features with tab-delimited columns
               m/z, retention time, p-value, statistic score
         
@@ -306,41 +307,65 @@ class InputUserData:
     def __init__(self, paradict):
         self.paradict = paradict
         self.header_fields = []
-        self.ListOfMassFeatures = []
-        self.input_featurelist = []
+        self.ListOfMassFeatures = {}
+        self.input_featurelist = {}
+        self.filekeys = [] ## so we can easily get the slots
         
         self.read()
-        self.determine_significant_list(self.ListOfMassFeatures)
+        self.determine_significant_list()
+        ## HPB Not sure why self is calling self.list ?
+        self.max_retention_time = [0] * len(self.filekeys)
+        self.max_mz = [0] * len(self.filekeys)
         
-        self.max_retention_time = max([M.retention_time for M in self.ListOfMassFeatures])
-        self.max_mz = max([M.mz for M in self.ListOfMassFeatures])
+        for k in range(0, len(self.filekeys)):
+            key=self.filekeys[k]
+            self.max_retention_time[k] = max([ M.retention_time for M in self.ListOfMassFeatures[ key ] ])
+            self.max_mz[k] = max([ M.mz for M in self.ListOfMassFeatures[ key ] ])
+        print("hey sexy 2\n")
+
+    def list_files(self, directory, extension):
+        ## really no reason for this to be in a class
+        filgen=(f for f in listdir(directory) if f.endswith('.' + extension))
+        return(list(filgen))
         
-        
-    def text_to_ListOfMassFeatures(self, textValue, delimiter='\t'):
+    def text_to_ListOfMassFeatures(self, dirValue, delimiter='\t'):
         '''
         Column order is hard coded for now, as mz, retention_time, p_value, statistic, CompoundID_from_user
         '''
         #
-        lines = self.__check_redundant__( textValue.splitlines() )
-        self.header_fields = lines[0].rstrip().split(delimiter)
-        excluded_list = []
-        for ii in range(len( lines )-1):
-            y = lines[ii+1].split('\t')
-            
-            CompoundID_from_user = ''
-            if len(y) > 4: CompoundID_from_user = y[4]
-            [mz, retention_time, p_value, statistic] = [float(x) for x in y[:4]]
-            
-            # row_number, mz, retention_time, p_value, statistic, CompoundID_from_user
-            if MASS_RANGE[0] < mz < MASS_RANGE[1]:
-                # row # human-friendly, numbering from 1
-                self.ListOfMassFeatures.append( 
-                    MassFeature('row'+str(ii+1), mz, retention_time, p_value, statistic, CompoundID_from_user) )
-            else:
-                excluded_list.append( (ii, mz, retention_time) )
+        ## fist find files each txt file within the directory specified
+        fileList=self.list_files(dirValue, "txt")
+        fileList+=self.list_files(dirValue, "tsv")
+        ## stop hard coding this later with more time
         
-        if excluded_list:
-            print_and_loginfo( "Excluding %d features out of m/z range %s." %(len(excluded_list), str(MASS_RANGE)) )
+        self.filekeys = fileList
+        self.ListOfMassFeatures={k: [ ] for k in fileList}
+        ## put the dictionary if list together using the filenames
+        
+        for fl in fileList:
+            ## now for each file
+            textValue= open(os.path.join(dirValue, fl)).read()
+            lines = self.__check_redundant__( textValue.splitlines() )
+            self.header_fields = lines[0].rstrip().split(delimiter)
+            excluded_list = []
+            for ii in range(len( lines )-1):
+                y = lines[ii+1].split('\t')
+                
+                CompoundID_from_user = ''
+                if len(y) > 4: CompoundID_from_user = y[4]
+                [mz, retention_time, p_value, statistic] = [float(x) for x in y[:4]]
+                
+                # row_number, mz, retention_time, p_value, statistic, CompoundID_from_user
+                if MASS_RANGE[0] < mz < MASS_RANGE[1]:
+                    # row # human-friendly, numbering from 1
+                    self.ListOfMassFeatures[fl].append(
+                        MassFeature('row'+str(ii+1), mz, retention_time, p_value, statistic, CompoundID_from_user) )
+                else:
+                    excluded_list.append( (ii, mz, retention_time) )
+            
+            if excluded_list:
+                print_and_loginfo( "Excluding %d features out of m/z range %s." %(len(excluded_list), str(MASS_RANGE)))
+            print_and_loginfo("Read %d features as reference list - %s" %(len(self.ListOfMassFeatures[ fl ]), str(fl)))
 
         
     def read_from_file(self, inputFile):
@@ -361,13 +386,13 @@ class InputUserData:
         Row_numbers (rowii+1) are used as primary ID.
         # not using readlines() to avoid problem in processing some Mac files
         '''
-        self.text_to_ListOfMassFeatures( 
-                open(os.path.join(self.paradict['workdir'], self.paradict['infile'])).read() )
-        print_and_loginfo("Read %d features as reference list." %len(self.ListOfMassFeatures))
+        self.text_to_ListOfMassFeatures(
+            self.paradict[ 'infile' ])
+                #open(os.path.join(self.paradict['workdir'], self.paradict['infile'])).read() )
     
     
     # more work?
-    def determine_significant_list(self, all_feature_list):
+    def determine_significant_list(self):
         '''
         For single input file format in ver 2. 
         The significant list, input_mzlist, should be a subset of ref_mzlist,
@@ -376,45 +401,47 @@ class InputUserData:
         in which case, paradict['cutoff'] is updated accordingly.
         
         '''
-        if not self.paradict['cutoff']:
-            # automated cutoff
-            new = sorted(all_feature_list, key=lambda x: x.p_value)
-            
-            p_hotspots = [ 0.2, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0001 ]
-            N_hotspots = [ len([x for x in all_feature_list if x.p_value < pp]) for pp in p_hotspots ]
-            
-            N_quantile = len(new) / 4
-            N_optimum, N_minimum = 300, 30
-            chosen = 9999
-            for ii in range( len(N_hotspots) ):
-                # will get the smallest p as ii increases
-                if N_optimum < N_hotspots[ii] < N_quantile:
-                    chosen = ii
-            
-            # if nothing was chosen
-            if chosen > 100:
-                for ii in range( len(N_hotspots) ):
-                    if N_minimum < N_hotspots[ii] < N_quantile:
-                        chosen = ii
-            
-            if chosen > 100:
-                N_chosen = int(N_quantile)
-                self.paradict['cutoff'] = new[N_chosen+1].p_value
-            else:
-                #N_chosen = N_hotspots[chosen]
+        for k in range(0, len(self.filekeys)):
+            if not self.paradict[ 'cutoff' ][k]:
+                # automated cutoff
+                key=self.filekeys[k]
+                new = sorted(self.ListOfMassFeatures[key], key=lambda x: x.p_value)
                 
-                self.paradict['cutoff'] = p_hotspots[chosen]
-        
-            print_and_loginfo("Automatically choosing (p < %f) as significant cutoff."  %self.paradict['cutoff'])  
-        
-        # mark MassFeature significant
-        for f in self.ListOfMassFeatures:
-            if f.p_value < self.paradict['cutoff']:
-                f.is_significant = True
-        
-        self.input_featurelist = [f.row_number for f in self.ListOfMassFeatures if f.is_significant]
-        print_and_loginfo("Using %d features (p < %f) as significant list." 
-                              %(len(self.input_featurelist), self.paradict['cutoff']))  
+                p_hotspots = [ 0.2, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0001 ]
+                N_hotspots = [ len([x for x in self.ListOfMassFeatures[key] if x.p_value < pp]) for pp in p_hotspots ]
+                
+                N_quantile = len(new) / 4
+                N_optimum, N_minimum = 300, 30
+                chosen = 9999
+                for ii in range( len(N_hotspots) ):
+                    # will get the smallest p as ii increases
+                    if N_optimum < N_hotspots[ii] < N_quantile:
+                        chosen = ii
+                
+                # if nothing was chosen
+                if chosen > 100:
+                    for ii in range( len(N_hotspots) ):
+                        if N_minimum < N_hotspots[ii] < N_quantile:
+                            chosen = ii
+                
+                if chosen > 100:
+                    N_chosen = int(N_quantile)
+                    self.paradict['cutoff'][k] = new[N_chosen+1].p_value
+                else:
+                    #N_chosen = N_hotspots[chosen]
+                    
+                    self.paradict['cutoff'][k] = p_hotspots[chosen]
+            
+                print_and_loginfo("Automatically choosing (p < %f) as significant cutoff."  %self.paradict['cutoff'][k])
+            
+            # mark MassFeature significant
+            for f in self.ListOfMassFeatures[key]:
+                if f.p_value < self.paradict['cutoff'][k]:
+                    f.is_significant = True
+            
+            self.input_featurelist[key] = [f.row_number for f in self.ListOfMassFeatures[key] if f.is_significant]
+            print_and_loginfo("Using %d features (p < %f) as significant list."
+                                  %(len(self.input_featurelist[key]), self.paradict['cutoff'][k]))
 
 
     def make_manhattan_plots(self, outfile='mcg_MWAS'):
@@ -503,17 +530,29 @@ class DataMeetModel:
         '''
         self.model = theoreticalModel
         self.data = userData
+        self.ListOfEmpiricalCompoundsMerge = []
         
         # retention time window for grouping, based on fraction of max rtime
-        self.rtime_tolerance = self.data.max_retention_time * RETENTION_TIME_TOLERANCE_FRAC
+        self.rtime_tolerance = [x * RETENTION_TIME_TOLERANCE_FRAC for x in self.data.max_retention_time]
         
         # major data structures
         self.IonCpdTree = self.__build_cpdindex__( self.data.paradict['mode'] )
         self.rowDict = self.__build_rowindex__( self.data.ListOfMassFeatures )
         self.ListOfEmpiricalCompounds = self.get_ListOfEmpiricalCompounds()
         
+        ## now we can merge the data from the multiple files
         # this is the reference list
-        self.mzrows = [M.row_number for M in self.data.ListOfMassFeatures]
+        ListOfEmpiricalCompoundsMerge = []
+        ListOfMassFeaturesMerge = []
+        for k in range(0, len(self.data.filekeys)):
+            key = self.data.filekeys[ k ]
+            ListOfEmpiricalCompoundsMerge += (self.ListOfEmpiricalCompounds[key])
+            ListOfMassFeaturesMerge += (self.data.ListOfMassFeatures[key])
+            ## tries to merge the lists into one. HPB
+            
+        self.ListOfEmpiricalCompoundsMerge = ListOfEmpiricalCompoundsMerge
+        ## probably not needed but I'm debugging and I'm going crazy so yea .. HPB
+        self.mzrows = [ M.row_number for M in ListOfMassFeaturesMerge ]
         
         self.rowindex_to_EmpiricalCompounds = self.__make_rowindex_to_EmpiricalCompounds__()
         self.Compounds_to_EmpiricalCompounds = self.__index_Compounds_to_EmpiricalCompounds__()
@@ -521,7 +560,7 @@ class DataMeetModel:
         # this is the sig list
         self.significant_features = self.data.input_featurelist
         self.TrioList = self.batch_rowindex_EmpCpd_Cpd( self.significant_features )
-        
+        print("__init__ from data-meet-model class")
         
         
 
@@ -569,8 +608,11 @@ class DataMeetModel:
         '''
         Index list of MassFeatures by row# in input data
         '''
-        rowDict = {}
-        for M in ListOfMassFeatures: rowDict[M.row_number] = M
+        rowDict = {k: {} for k in self.data.filekeys}
+        for k in range(0, len(self.data.filekeys)):
+            key= self.data.filekeys[k]
+            for M in ListOfMassFeatures[key]:
+                rowDict[key][M.row_number] = M
         return rowDict
 
 
@@ -596,9 +638,10 @@ class DataMeetModel:
         '''
         Fill mzFeatures with matched ions and compounds
         '''
-        for M in self.data.ListOfMassFeatures:
-            M.matched_Ions = self.__match_mz_ion__(M.mz, self.IonCpdTree)
-        
+        for k in range(0, len(self.data.filekeys)):
+            key= self.data.filekeys[k]
+            for M in self.data.ListOfMassFeatures[key]:
+                M.matched_Ions = self.__match_mz_ion__(M.mz, self.IonCpdTree)
         
     def index_Compounds_to_mzFeatures(self):
         '''
@@ -607,16 +650,19 @@ class DataMeetModel:
         L: (compoundID, ion, mass)
         cpd2mzFeatures[compoundID] = [(ion, mass, mzFeature), ...]
         '''
-        cpd2mzFeatures = {}
-        for M in self.data.ListOfMassFeatures:
-            for L in M.matched_Ions:
-                if cpd2mzFeatures.has_key(L[0]):
-                    cpd2mzFeatures[L[0]].append( (L[1], L[2], M) )
-                else:
-                    cpd2mzFeatures[L[0]] = [(L[1], L[2], M)]
-        
-        print ("Got %d cpd2mzFeatures" %len(cpd2mzFeatures))
+        cpd2mzFeatures = {k: {} for k in self.data.filekeys}
+        for k in range(0, len(self.data.filekeys)):
+            key= self.data.filekeys[k]
+            for M in self.data.ListOfMassFeatures[key]:
+                for L in M.matched_Ions:
+                    if cpd2mzFeatures[key].has_key(L[0]):
+                        cpd2mzFeatures[key][L[0]].append( (L[1], L[2], M) )
+                    else:
+                        cpd2mzFeatures[key][L[0]] = [(L[1], L[2], M)]
+            
+            print ("Got %d cpd2mzFeatures - %s" %(len(cpd2mzFeatures[key]), str(key)))
         return cpd2mzFeatures
+        ## this makes this a complex dict of dict
         
         
     def __match_mz_ion__(self, mz, IonCpdTree):
@@ -641,14 +687,17 @@ class DataMeetModel:
         then merging those matched to same m/z features.
         run after self.index_Compounds_to_mzFeatures()
         '''
-        ListOfEmpiricalCompounds = []
-        for k,v in self.cpd2mzFeatures.items():
-            ListOfEmpiricalCompounds += self.__split_Compound__(k, v, self.rtime_tolerance)      # getting inital instances of EmpiricalCompound
-            
-        print ("Got %d ListOfEmpiricalCompounds" %len(ListOfEmpiricalCompounds))
-        
-        # merge compounds that are not distinguished by analytical platform, e.g. isobaric
-        return self.__merge_EmpiricalCompounds__( ListOfEmpiricalCompounds )
+        ListOfEmpiricalCompounds = {k: [] for k in self.data.filekeys} # []
+        outputListOfEmpCompound = {k: [] for k in self.data.filekeys}
+        for k in range(0, len(self.data.filekeys)):
+            key = self.data.filekeys[ k ]
+            for k,v in self.cpd2mzFeatures[key].items():
+                ListOfEmpiricalCompounds[key] += self.__split_Compound__(k, v, self.rtime_tolerance)      # getting inital instances of EmpiricalCompound
+                
+            print ("Got %d ListOfEmpiricalCompounds - %s" %(len(ListOfEmpiricalCompounds[key]), str(key)))
+            # merge compounds that are not distinguished by analytical platform, e.g. isobaric
+            outputListOfEmpCompound[key]=self.__merge_EmpiricalCompounds__(ListOfEmpiricalCompounds[key])
+        return outputListOfEmpCompound
         
         
     def __split_Compound__(self, compoundID, list_match_mzFeatures, rtime_tolerance):
@@ -694,12 +743,12 @@ class DataMeetModel:
             else:
                 mydict[ L.str_row_ion ]= L
         
-        print ("Got %d merged ListOfEmpiricalCompounds" %len(mydict))
+        print ("Got %d merged ListOfEmpiricalCompounds" %(len(mydict)) )
         return mydict.values()
 
     def __make_rowindex_to_EmpiricalCompounds__(self):
         mydict = {}
-        for E in self.ListOfEmpiricalCompounds:
+        for E in self.ListOfEmpiricalCompoundsMerge:
             for m in E.massfeature_rows:
                 if mydict.has_key(m):
                     mydict[m].append(E)
@@ -713,7 +762,7 @@ class DataMeetModel:
         Make dict cpd - EmpiricalCompounds
         '''
         mydict = {}
-        for E in self.ListOfEmpiricalCompounds:
+        for E in self.ListOfEmpiricalCompoundsMerge:
             for m in E.compounds:
                 if mydict.has_key(m):
                     mydict[m].append(E)
@@ -742,19 +791,23 @@ class DataMeetModel:
         Collect EmpiricalCompounds.
         Initiate EmpCpd attributes here.
         '''
-        ListOfEmpiricalCompounds, ii = [], 1
-        for EmpCpd in self.__match_all_to_all__():
-            EmpCpd.evaluate()
-            EmpCpd.EID = 'E' + str(ii)
-            EmpCpd.get_mzFeature_of_highest_statistic( self.rowDict )
-            ii += 1
-            if self.data.paradict['force_primary_ion']:
-                if EmpCpd.primary_ion_present:
-                    ListOfEmpiricalCompounds.append(EmpCpd)
-            else:
-                ListOfEmpiricalCompounds.append(EmpCpd)
-        
-        print ("Got %d final ListOfEmpiricalCompounds" %len(ListOfEmpiricalCompounds))
+        ListOfEmpiricalCompounds = {k: [ ] for k in self.data.filekeys}
+        ii=1
+        EmpCpdDict=self.__match_all_to_all__()
+        for k in range(0, len(self.data.filekeys)):
+            key = self.data.filekeys[ k ]
+            for EmpCpd in EmpCpdDict[key]:
+                EmpCpd.evaluate()
+                EmpCpd.EID = 'E' + str(ii)
+                EmpCpd.get_mzFeature_of_highest_statistic( self.rowDict[key] )
+                ii += 1
+                if self.data.paradict['force_primary_ion']:
+                    if EmpCpd.primary_ion_present:
+                        ListOfEmpiricalCompounds[key].append(EmpCpd)
+                else:
+                    ListOfEmpiricalCompounds[key].append(EmpCpd)
+            
+            print ("Got %d final ListOfEmpiricalCompounds" %len(ListOfEmpiricalCompounds[key]))
         return ListOfEmpiricalCompounds
 
         
