@@ -88,9 +88,11 @@ class WebReporting:
         
         # MWAS figure
         HTML.add_element('User input data', 'h2', '')
-        details_userData = "User supplied %d features as reference list." %len(self.data.ListOfMassFeatures)
-        details_userData += "We are using %d features (p < %f) as significant list. The feature level data are shown in the Manhattan plots below." %(
-                                    len(self.data.input_featurelist), self.data.paradict['cutoff'] )
+        for k in range(0, len(self.data.filekeys)):
+            key = self.data.filekeys[ k ]
+            details_userData = "User supplied %d features as reference list." %len(self.data.ListOfMassFeatures[key])
+            details_userData += "We are using %d features (p < %f) as significant list. The feature level data are shown in the Manhattan plots below." %(
+                                    len(self.data.input_featurelist[key]), self.data.paradict['cutoff'][k] )
         HTML.add_element(details_userData, 'p', '')
         HTML.add_element(self.Local.inline_plot_userData_MWAS, 'div', 'inline_plot_userData_MWAS')
 
@@ -312,8 +314,9 @@ class LocalExporting:
         
         '''
         s = "massfeature_rows\tm/z\tretention_time\tp_value\tstatistic\tCompoundID_from_user\n"
-        for F in self.data.ListOfMassFeatures:
-            s += F.make_str_output() + '\n'
+        for key in self.data.filekeys:
+            for F in self.data.ListOfMassFeatures[key]:
+                s += F.make_str_output() + '\n'
                 
         with open(os.path.join(self.tabledir, "userInputData.txt"), 'w') as O:
             O.write(s)
@@ -326,10 +329,11 @@ class LocalExporting:
         In ActivityNetwork, the top predicted metaolite is determined.
         '''
         s = "EID\tmassfeature_rows\tstr_row_ion\tcompounds\tcompound_names\n"
-        for E in self.mixedNetwork.ListOfEmpiricalCompounds:
-            names = [self.model.dict_cpds_def.get(x, '') for x in E.compounds]
-            s += '\t'.join([E.EID, ';'.join(E.massfeature_rows), E.str_row_ion, ';'.join(E.compounds), '$'.join(names)]
-                ) + '\n'
+        for key in self.data.filekeys:
+            for E in self.mixedNetwork.ListOfEmpiricalCompounds[key]:
+                names = [self.model.dict_cpds_def.get(x, '') for x in E.compounds]
+                s += '\t'.join([E.EID, ';'.join(E.massfeature_rows), E.str_row_ion, ';'.join(E.compounds), '$'.join(names)]
+                    ) + '\n'
         with open(os.path.join(self.tabledir, "ListOfEmpiricalCompounds.tsv"), 'w') as O:
             O.write(s)
 
@@ -400,9 +404,9 @@ class LocalExporting:
 
 
     def plot_userData_MWAS(self):
-        self.inline_plot_userData_MWAS = self.data.make_manhattan_plots( 
-            os.path.join(self.figuredir, "mcg_MWAS_") + self.data.paradict['output']
-            )
+        temppath=os.path.join(self.figuredir, "mcg_MWAS_") + self.data.paradict[ 'output' ]
+        self.inline_plot_userData_MWAS = self.data.make_manhattan_plots( temppath )
+            #os.path.join(self.figuredir, "mcg_MWAS_") + self.data.paradict['output'])
 
     def plot_pathwayBars(self):
         self.inline_plot_pathwayBars = self.PA.plot_bars_top_pathways(

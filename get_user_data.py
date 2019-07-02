@@ -321,7 +321,6 @@ class InputUserData:
             key=self.filekeys[k]
             self.max_retention_time[k] = max([ M.retention_time for M in self.ListOfMassFeatures[ key ] ])
             self.max_mz[k] = max([ M.mz for M in self.ListOfMassFeatures[ key ] ])
-        print("hey sexy 2\n")
 
     def list_files(self, directory, extension):
         ## really no reason for this to be in a class
@@ -359,7 +358,7 @@ class InputUserData:
                 if MASS_RANGE[0] < mz < MASS_RANGE[1]:
                     # row # human-friendly, numbering from 1
                     self.ListOfMassFeatures[fl].append(
-                        MassFeature('row'+str(ii+1), mz, retention_time, p_value, statistic, CompoundID_from_user) )
+                        MassFeature(fl +'-row'+str(ii+1), mz, retention_time, p_value, statistic, CompoundID_from_user) )
                 else:
                     excluded_list.append( (ii, mz, retention_time) )
             
@@ -453,15 +452,20 @@ class InputUserData:
         # determine parameters
         figsize = (6, 3)
         CutoffLine = -np.log10(self.paradict['cutoff'])
-        sigList = [ f for f in self.ListOfMassFeatures if f.p_value < self.paradict['cutoff'] ]
-        restList = [ f for f in self.ListOfMassFeatures if f.p_value >= self.paradict['cutoff'] ]
+        sigList=[]
+        restList=[]
+        for k in range(0, len(self.filekeys)):
+            key = self.filekeys[ k ]
+            sigList += [ f for f in self.ListOfMassFeatures[key] if f.p_value < self.paradict['cutoff'][k] ]
+            restList += [ f for f in self.ListOfMassFeatures[key] if f.p_value >= self.paradict['cutoff'][k] ]
+        
         Y_label = "-log10 p-value"
         Y_black = [-np.log10(f.p_value) for f in restList]
         Y_green = [-np.log10(f.p_value) for f in sigList]
         X_label = ["m/z", "Retention time"]
         X_black = [ [f.mz for f in restList], [f.retention_time for f in restList] ]
         X_green = [ [f.mz for f in sigList], [f.retention_time for f in sigList] ]
-        X_max = [self.max_mz, self.max_retention_time]
+        X_max = [max(self.max_mz), max(self.max_retention_time)]
         
         # plot two panels, MWAS on m/z and rtime
         fig, myaxes = plt.subplots(figsize=figsize, nrows=1, ncols=2)
@@ -531,6 +535,7 @@ class DataMeetModel:
         self.model = theoreticalModel
         self.data = userData
         self.ListOfEmpiricalCompoundsMerge = []
+        self.significant_features = []
         
         # retention time window for grouping, based on fraction of max rtime
         self.rtime_tolerance = [x * RETENTION_TIME_TOLERANCE_FRAC for x in self.data.max_retention_time]
@@ -558,12 +563,14 @@ class DataMeetModel:
         self.Compounds_to_EmpiricalCompounds = self.__index_Compounds_to_EmpiricalCompounds__()
         
         # this is the sig list
-        self.significant_features = self.data.input_featurelist
+        for key in self.data.filekeys:
+            self.significant_features += self.data.input_featurelist[key]
+        
+        #print("WTF why isn't significant_features a list ?!?!")
         self.TrioList = self.batch_rowindex_EmpCpd_Cpd( self.significant_features )
         print("__init__ from data-meet-model class")
-        
-        
-
+    
+    
     def __build_cpdindex__(self, msmode):
         '''
         indexed Compound list, to speed up m/z matching.
@@ -608,11 +615,12 @@ class DataMeetModel:
         '''
         Index list of MassFeatures by row# in input data
         '''
-        rowDict = {k: {} for k in self.data.filekeys}
+        #rowDict = {k: {} for k in self.data.filekeys}
+        rowDict = {}
         for k in range(0, len(self.data.filekeys)):
             key= self.data.filekeys[k]
             for M in ListOfMassFeatures[key]:
-                rowDict[key][M.row_number] = M
+                rowDict[M.row_number] = M
         return rowDict
 
 
@@ -694,9 +702,9 @@ class DataMeetModel:
             for k,v in self.cpd2mzFeatures[key].items():
                 ListOfEmpiricalCompounds[key] += self.__split_Compound__(k, v, self.rtime_tolerance)      # getting inital instances of EmpiricalCompound
                 
-            print ("Got %d ListOfEmpiricalCompounds - %s" %(len(ListOfEmpiricalCompounds[key]), str(key)))
+            print ("Got %d ListOfEmpiricalCompounds" %(len(ListOfEmpiricalCompounds[key]) ))
             # merge compounds that are not distinguished by analytical platform, e.g. isobaric
-            outputListOfEmpCompound[key]=self.__merge_EmpiricalCompounds__(ListOfEmpiricalCompounds[key])
+            outputListOfEmpCompound[key]=self.__merge_EmpiricalCompounds__(ListOfEmpiricalCompounds)
         return outputListOfEmpCompound
         
         
@@ -737,11 +745,13 @@ class DataMeetModel:
         Because EmpiricalCompounds.str_row_ion uses mzFeatures sorted by row_number, this is 
         '''
         mydict = {}
-        for L in ListOfEmpiricalCompounds:
-            if mydict.has_key(L.str_row_ion):
-                mydict[ L.str_row_ion ].join(L)
-            else:
-                mydict[ L.str_row_ion ]= L
+        for k in range(0, len(self.data.filekeys)):
+            key = self.data.filekeys[ k ]
+            for L in ListOfEmpiricalCompounds[key]:
+                if mydict.has_key(L.str_row_ion):
+                    mydict[ L.str_row_ion ].join(L)
+                else:
+                    mydict[ L.str_row_ion ]= L
         
         print ("Got %d merged ListOfEmpiricalCompounds" %(len(mydict)) )
         return mydict.values()
@@ -782,7 +792,7 @@ class DataMeetModel:
             for E in self.rowindex_to_EmpiricalCompounds.get(f, []):
                 for cpd in E.compounds:
                     new.append((f, E, cpd))
-            
+        
         return new
 
             
@@ -799,7 +809,7 @@ class DataMeetModel:
             for EmpCpd in EmpCpdDict[key]:
                 EmpCpd.evaluate()
                 EmpCpd.EID = 'E' + str(ii)
-                EmpCpd.get_mzFeature_of_highest_statistic( self.rowDict[key] )
+                EmpCpd.get_mzFeature_of_highest_statistic( self.rowDict )
                 ii += 1
                 if self.data.paradict['force_primary_ion']:
                     if EmpCpd.primary_ion_present:
