@@ -33,7 +33,7 @@ from reporting import *
 def main():
     
     print fishlogo
-    print ( "mummichog version %s \n" %VERSION )
+    print ( "mummichog-archival version %s \n" %VERSION )
     optdict = dispatcher()
 
     print_and_loginfo("Started @ %s\n" %time.asctime())

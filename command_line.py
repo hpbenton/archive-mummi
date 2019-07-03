@@ -1,1 +1,1 @@
-from mummichog.main import *
+from mummichogArchival.main import *
