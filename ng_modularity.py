@@ -13,6 +13,7 @@ Last modified to add fielding numpy.linalg.linalg.linAlgError, Shuzhao Li, 2017-
 USE_TEST_MODE = False
 
 from numpy import *
+# import numpy
 
 if USE_TEST_MODE:
     import re, itertools

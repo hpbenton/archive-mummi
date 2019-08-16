@@ -56,7 +56,7 @@ def cli_options(opts):
                'network': 'human_mfn',
                'modeling': None,
                
-               'mode': 'pos_default',
+               'mode': ['pos_default', 'negative'],
                'instrument': 'unspecified',
                'force_primary_ion': True,
                
@@ -84,7 +84,10 @@ def cli_options(opts):
         elif o in ("-z", "--force_primary_ion"): optdict['force_primary_ion'] = booleandict.get(a, True)
         elif o in ("-d", "--modeling"): optdict['modeling'] = a
         elif o in ("-e", "--evidence"): optdict['evidence'] = int(a)
-        elif o in ("-m", "--mode"): optdict['mode'] = modedict.get(a, a)
+        elif o in ("-m", "--mode"):  ## hpb edited to allow for multi modal work
+            # for i in range(0,len(optdict['mode'])):
+            # ## not needed in web based system because it will be passed directly from web interface
+                optdict['mode'] = modedict.get(a, a)
         elif o in ("-u", "--instrument"): optdict['instrument'] = a
         elif o in ("-v", "--visualization"): optdict['visualization'] = int(a)
         elif o in ("-k", "--workdir"): optdict['workdir'] = a
@@ -498,12 +501,7 @@ class InputUserData:
         return '<img src = "%s"/>' % uri
         
         
-        
-        
-        
-
 # metabolicNetwork
-
 class DataMeetModel:
     '''
     
@@ -513,17 +511,13 @@ class DataMeetModel:
     when a Compound matched to multiple MassFeatures, split by retention time to EmpiricalCompounds;
     when a Mass Feature matched to multiple Compounds, no need to do anything.
     
-    
     Default primary ion is enforced, so that for an EmpiricalCompound, primary ion needs to exist before other ions.
     
-    
     also here, compile cpd adduct lists, build cpd tree
-    
     
     This returns the tracking map btw massFeatures - EmpiricalCompounds - Compounds
     Number of EmpiricalCompounds will be used to compute pathway enrichment, and control for module analysis.
     
-
     '''
     def __init__(self, theoreticalModel, userData):
         '''
@@ -568,7 +562,7 @@ class DataMeetModel:
         
         #print("WTF why isn't significant_features a list ?!?!")
         self.TrioList = self.batch_rowindex_EmpCpd_Cpd( self.significant_features )
-        print("__init__ from data-meet-model class")
+        # print("__init__ from data-meet-model class")
     
     
     def __build_cpdindex__(self, msmode):
@@ -594,7 +588,10 @@ class DataMeetModel:
         >>> len(metabolicModels['human_model_mfn']['Compounds'])
         3560
         '''
-        wanted_ions = wanted_adduct_list[msmode]
+        #wanted_ions = wanted_adduct_list[msmode] ### ??? MS MODE HERE ???
+        wanted_ions = []
+        for i in range(0, len(msmode)):
+            wanted_ions.append(wanted_adduct_list[msmode[i]])
         IonCpdTree = []
         
         for ii in range(MASS_RANGE[1]+1): 
@@ -604,8 +601,9 @@ class DataMeetModel:
         for c,d in self.model.Compounds.items():
             if d['mw']:                 #sanity check; bypass mistake in adducts type
                 for ion,mass in d['adducts'].items():
-                    if ion in wanted_ions and MASS_RANGE[0] < mass < MASS_RANGE[1]:
-                        IonCpdTree[ int(mass) ].append( (c, ion, mass) )
+                    for i in range(0, len(wanted_ions)):
+                        if ion in wanted_ions[i] and MASS_RANGE[0] < mass < MASS_RANGE[1]:
+                            IonCpdTree[ int(mass) ].append( (c, ion, mass) )
                 
         # tree: (compoundID, ion, mass), ion=match form; mass is theoretical
         return IonCpdTree
@@ -680,7 +678,7 @@ class DataMeetModel:
         '''
         floor = int(mz)
         matched = []
-        mztol = mz_tolerance(mz, self.data.paradict['mode'])
+        mztol = mz_tolerance(mz, self.data.paradict['instrument'])
         for ii in [floor-1, floor, floor+1]:
             for L in IonCpdTree[ii]:
                 if abs(L[2]-mz) < mztol:
