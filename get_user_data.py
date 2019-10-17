@@ -339,12 +339,16 @@ class InputUserData:
         fileList=self.list_files(dirValue, "txt")
         fileList+=self.list_files(dirValue, "tsv")
         ## stop hard coding this later with more time
+        for i in range(len(fileList)):
+            print fileList[i],
+        print("\n")
         
         self.filekeys = fileList
         self.ListOfMassFeatures={k: [ ] for k in fileList}
         ## put the dictionary if list together using the filenames
         
         for fl in fileList:
+            print("Reading - " + fl)
             ## now for each file
             textValue= open(os.path.join(dirValue, fl)).read()
             lines = self.__check_redundant__( textValue.splitlines() )
@@ -404,9 +408,9 @@ class InputUserData:
         
         '''
         for k in range(0, len(self.filekeys)):
-            if not self.paradict[ 'cutoff' ][k]:
+            key = self.filekeys[ k ]
+            if not self.paradict[ 'cutoff' ]:#[k]:
                 # automated cutoff
-                key=self.filekeys[k]
                 new = sorted(self.ListOfMassFeatures[key], key=lambda x: x.p_value)
                 
                 p_hotspots = [ 0.2, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0001 ]

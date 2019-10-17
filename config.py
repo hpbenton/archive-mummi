@@ -67,7 +67,7 @@ def sigmoid(x, theta=0.25):
 
 
 # accuracy of the MS instrument
-def mz_tolerance(mz, mode):
+def mz_tolerance(mz, MZerr):
     '''
     The functions supplied here for FTMS and Oribtrap 
     were based on instrumentation in DPJ lab.
@@ -77,21 +77,29 @@ def mz_tolerance(mz, mode):
     will use flat ppm, not using this function for ------
     
     '''
-    try:
-        mode = int(mode)
-        return 0.000001 * mode * mz
-    
-    except ValueError:
-        if mode == 'FTMS':
-            return max(0.00001*mz, 3*2**(1.98816*np.log2(mz) - 26.1945))
+    mzout = []
+    for i in range(0, len(MZerr)):
+        try:
+            # MZerr = int(MZerr)
+            # return 0.000001 * MZerr * mz
+            mzout.append(0.000001 * MZerr[i] * mz)
+            
         
-        elif mode == 'ORBITRAP':
-            # needs further calibration
-            # return max(0.00001*mz, 2*2**(1.45325*np.log2(mz) - 20.8554))
-            return 0.000010*mz
-        
-        else:
-            return 0.000010*mz
+        except ValueError:
+            if MZerr == 'FTMS':
+                # return max(0.00001*mz, 3*2**(1.98816*np.log2(mz) - 26.1945))
+                mzout.append(max(0.00001*mz, 3*2**(1.98816*np.log2(mz) - 26.1945)) )
+            
+            elif MZerr == 'ORBITRAP':
+                # needs further calibration
+                # return max(0.00001*mz, 2*2**(1.45325*np.log2(mz) - 20.8554))
+                # return 0.000010*mz
+                mzout.append(0.000010*mz)
+            
+            else:
+                # return 0.000010*mz
+                mzout.append(0.000010*mz)
+    return(mzout)
   
 primary_ions = ['M+H[1+]', 'M+Na[1+]', 'M-H2O+H[1+]', 'M-H[-]', 'M-2H[2-]', 'M-H2O-H[-]']
 
