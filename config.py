@@ -65,6 +65,11 @@ def sigmoid(x, theta=0.25):
     '''
     return 1/(1 + np.e ** (-theta * x))
 
+def uniqueList(list1, list2):
+    lst = list1 + list2
+    x = np.array(lst)
+    x=np.unique(x)
+    return(x.tolist())
 
 # accuracy of the MS instrument
 def mz_tolerance(mz, MZerr):

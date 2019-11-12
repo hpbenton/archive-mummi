@@ -12,7 +12,7 @@ Last modified to add fielding numpy.linalg.linalg.linAlgError, Shuzhao Li, 2017-
 
 USE_TEST_MODE = False
 
-from numpy import *
+import numpy as np
 # import numpy
 
 if USE_TEST_MODE:
@@ -61,7 +61,7 @@ class module:
         self.fetch_modularity_matrix(nobj)
         group1, group2 = [], []
         try:
-            [eigenvalues, eigenvectors] = linalg.eig(self.modularity_matrix)
+            [eigenvalues, eigenvectors] = np.linalg.eig(self.modularity_matrix)
             if eigenvalues.max() > 0:
                 # vector corresponding to max eigenvalue, normalized
                 lead_vector = eigenvectors[:, eigenvalues.argmax()]
@@ -72,7 +72,7 @@ class module:
                         group2.append(self.nodes[ii])
                 self.calculate_s(group1, group2)
                 self.delta_Q = self.compute_delta_Q(nobj)
-        except numpy.linalg.linalg.linAlgError:
+        except np.linalg.LinAlgError as err:
             pass
         
         return group1, group2
@@ -82,8 +82,8 @@ class module:
         This is implementation of Eq.[2]. Not really used because 
         it is the same  as self.compute_delta_Q at the first network division.
         """
-        s = array(self.s)
-        return dot(dot(s.transpose(), nobj.modularity_matrix), s
+        s = np.array(self.s)
+        return np.dot(np.dot(s.transpose(), nobj.modularity_matrix), s
                                             )/(4.0*nobj.num_edges)
 
     def compute_delta_Q(self, nobj):
@@ -110,7 +110,7 @@ class module:
                 self.s[ii] = -1
 
     def fetch_modularity_matrix(self, nobj):
-        am = zeros( (self.num_nodes, self.num_nodes) )
+        am = np.zeros( (self.num_nodes, self.num_nodes) )
         for ii in range(self.num_nodes):
             for jj in range(self.num_nodes):
                 am[ii][jj] = nobj.modularity_matrix[nobj.crd[self.nodes[ii]],
@@ -197,7 +197,7 @@ class network:
         Modularity matrix is defined in Eq.[3],
         B_(i,j) = A_(i,j) - (k_i*k_j)/2m.
         """
-        am = zeros( (self.num_nodes, self.num_nodes) )
+        am = np.zeros( (self.num_nodes, self.num_nodes) )
         for ii in range(self.num_nodes):
             for jj in range(self.num_nodes):
                 am[ii, jj] = self.adjacency_matrix[ii, jj] - \
@@ -220,7 +220,7 @@ class network:
         Edges are treated as not directional, thus matrix is symmetrical.
         Multiple edges between two nodes are allowed.
         """
-        am = zeros( (self.num_nodes, self.num_nodes) )
+        am = np.zeros( (self.num_nodes, self.num_nodes) )
         for edge in self.edges:
             am[self.nodes.index(edge[0]), self.nodes.index(edge[1])] += 1
             # take out the next line will make a directional network
@@ -384,7 +384,7 @@ class nemo_network:
         nodedict = {}
         for ii in range(N): nodedict[ nodes[ii] ] = ii
         
-        m = zeros( (N, N) )
+        m = np.zeros( (N, N) )
         for x in self.sorted_pairs:
             m[nodedict[x[0][0]], nodedict[x[0][1]]] = x[1]
             m[nodedict[x[0][1]], nodedict[x[0][0]]] = x[1]

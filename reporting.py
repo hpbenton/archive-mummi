@@ -219,9 +219,11 @@ class WebReporting:
                 for f in E.massfeature_rows:
                     F = self.mixedNetwork.rowDict[f]
                     ion = E.row_to_ion[f]
-                    
                     # should store earlier?
-                    mz_diff = F.mz - self.model.Compounds[ E.face_compound ]['adducts'][ ion ]
+                    try:
+                        mz_diff = F.mz - self.model.Compounds[ E.face_compound ]['adducts'][ ion ]
+                    except:
+                        mz_diff = 0
                     
                     s += '<tr> <td> </td> <td>' + str(F.mz) + '</td> <td>' + str(F.retention_time) + '</td><td>' + ion + '</td><td>' + str(
                                 round(mz_diff,4)) + '</td><td>' + str(round(F.statistic,2)) + '</td><td>' + write_yes_no_MassFeature(F) + '</td></tr>'
@@ -329,11 +331,11 @@ class LocalExporting:
         In ActivityNetwork, the top predicted metaolite is determined.
         '''
         s = "EID\tmassfeature_rows\tstr_row_ion\tcompounds\tcompound_names\n"
-        for key in self.data.filekeys:
-            for E in self.mixedNetwork.ListOfEmpiricalCompounds[key]:
-                names = [self.model.dict_cpds_def.get(x, '') for x in E.compounds]
-                s += '\t'.join([E.EID, ';'.join(E.massfeature_rows), E.str_row_ion, ';'.join(E.compounds), '$'.join(names)]
-                    ) + '\n'
+        # for key in self.data.filekeys:
+        for E in self.mixedNetwork.ListOfEmpiricalCompounds:
+            names = [self.model.dict_cpds_def.get(x, '') for x in E.compounds]
+            s += '\t'.join([E.EID, ';'.join(E.massfeature_rows), E.str_row_ion, ';'.join(E.compounds), '$'.join(names)]
+                ) + '\n'
         with open(os.path.join(self.tabledir, "ListOfEmpiricalCompounds.tsv"), 'w') as O:
             O.write(s)
 

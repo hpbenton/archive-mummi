@@ -295,7 +295,34 @@ class EmpiricalCompound:
         all = [dict_mzFeature[r] for r in self.massfeature_rows]
         all.sort(key=lambda m: abs(m.statistic))
         self.mzFeature_of_highest_statistic = all[-1]
-
+        
+    def mergeCompound(self, E):
+        '''
+        This will take that actual 2 objects and combine them
+        Inputs self - object
+        num - the i number that we're on from self -- is this needed ??? I don't think so
+        E - the other object to combine with.
+        '''
+        self.EID = self.EID ## keep this EID
+        self.chosen_compounds = self.chosen_compounds ## this could be an issue
+        self.compounds = uniqueList(self.compounds, E.compounds)
+        self.ions.update(E.ions)
+        ionsList=uniqueList(self.ions.keys(), E.ions.keys())
+        if len(ionsList) != len(self.ions.keys()):
+            sys.exit("We have some massive issue here")
+        self.listOfFeatures += E.listOfFeatures
+        self.massfeature_rows += E.massfeature_rows
+        self.row_to_ion.update(E.row_to_ion)
+        
+        #self.p_value = min(self.p_value, E.p_value)
+        self.evidence_score = 0 ## need to reset the value
+        for x in self.ions.keys():
+            self.evidence_score += dict_weight_adduct[ x ]
+        
+        if self.mzFeature_of_highest_statistic.p_value > E.mzFeature_of_highest_statistic.p_value:
+            self.mzFeature_of_highest_statistic = E.mzFeature_of_highest_statistic
+        
+        
 
 class InputUserData:
     '''
@@ -533,9 +560,10 @@ class DataMeetModel:
         '''
         self.model = theoreticalModel
         self.data = userData
-        self.ListOfEmpiricalCompoundsMerge = []
+        # self.ListOfEmpiricalCompoundsMerge = []
         self.significant_features = []
         self.cpd2mzFeatures = {k: {} for k in userData.filekeys}
+        self.mzrows = []
         
         # retention time window for grouping, based on fraction of max rtime
         self.rtime_tolerance = {}
@@ -548,22 +576,13 @@ class DataMeetModel:
             IonCpdTree += self.__build_cpdindex__( self.data.paradict['mode'][k] )
         self.IonCpdTree = IonCpdTree
         self.rowDict = self.__build_rowindex__( self.data.ListOfMassFeatures )
-        self.ListOfEmpiricalCompounds = self.get_ListOfEmpiricalCompounds()
         
-        ## now we can merge the data from the multiple files
-        # this is the reference list
-        ListOfEmpiricalCompoundsMerge = []
-        ListOfMassFeaturesMerge = []
-        for k in range(0, len(self.data.filekeys)):
-            key = self.data.filekeys[ k ]
-            ListOfEmpiricalCompoundsMerge += (self.ListOfEmpiricalCompounds[key])
-            ListOfMassFeaturesMerge += (self.data.ListOfMassFeatures[key])
-            ## tries to merge the lists into one. HPB
-            
-        self.ListOfEmpiricalCompoundsMerge = ListOfEmpiricalCompoundsMerge
-        ## probably not needed but I'm debugging and I'm going crazy so yea .. HPB
-        self.mzrows = [ M.row_number for M in ListOfMassFeaturesMerge ]
-        
+        self.ListOfEmpiricalCompounds = {k: [ ] for k in self.data.filekeys}
+        for key in self.data.filekeys:
+            self.ListOfEmpiricalCompounds[ key ] = self.get_ListOfEmpiricalCompounds(key)
+            self.mzrows += [ M.row_number for M in self.data.ListOfMassFeatures[key] ]
+
+        self.mergeEmpericalCompounds()
         self.rowindex_to_EmpiricalCompounds = self.__make_rowindex_to_EmpiricalCompounds__()
         self.Compounds_to_EmpiricalCompounds = self.__index_Compounds_to_EmpiricalCompounds__()
         
@@ -732,7 +751,7 @@ class DataMeetModel:
             mergeLen = len(outputListOfEmpCompound[key]) + mergeLen
         #
         print ("Got %d ListOfEmpiricalCompounds" %totalLen )
-        print ("Got %d merged ListOfEmpiricalCompounds\n\n" %mergeLen)
+        print ("Got %d merged ListOfEmpiricalCompounds" %mergeLen)
         return outputListOfEmpCompound
         
         
@@ -790,7 +809,7 @@ class DataMeetModel:
 
     def __make_rowindex_to_EmpiricalCompounds__(self):
         mydict = {}
-        for E in self.ListOfEmpiricalCompoundsMerge:
+        for E in self.ListOfEmpiricalCompounds:
             for m in E.massfeature_rows:
                 if mydict.has_key(m):
                     mydict[m].append(E)
@@ -804,7 +823,7 @@ class DataMeetModel:
         Make dict cpd - EmpiricalCompounds
         '''
         mydict = {}
-        for E in self.ListOfEmpiricalCompoundsMerge:
+        for E in self.ListOfEmpiricalCompounds:
             for m in E.compounds:
                 if mydict.has_key(m):
                     mydict[m].append(E)
@@ -828,29 +847,87 @@ class DataMeetModel:
         return new
 
             
-    def get_ListOfEmpiricalCompounds(self):
+    def get_ListOfEmpiricalCompounds(self, key):
         '''
         Collect EmpiricalCompounds.
         Initiate EmpCpd attributes here.
         '''
-        ListOfEmpiricalCompounds = {k: [ ] for k in self.data.filekeys}
-        ii=1
+        ListOfEmpiricalCompounds, ii = [ ], 1
         # EmpCpdDict=self.__match_all_to_all__()
         # for k in range(0, len(self.data.filekeys)):
-        for key in self.data.filekeys:
-            # key = self.data.filekeys[ k ]
-            for EmpCpd in self.__match_all_to_all__(key)[key]:
-                EmpCpd.evaluate()
-                EmpCpd.EID = 'E' + str(ii)
-                EmpCpd.get_mzFeature_of_highest_statistic( self.rowDict )
-                ii += 1
-                if self.data.paradict['force_primary_ion']:
-                    if EmpCpd.primary_ion_present:
-                        ListOfEmpiricalCompounds[key].append(EmpCpd)
-                else:
-                    ListOfEmpiricalCompounds[key].append(EmpCpd)
-            
-            print ("Got %d final ListOfEmpiricalCompounds" %len(ListOfEmpiricalCompounds[key]))
+        for EmpCpd in self.__match_all_to_all__(key)[key]:
+            EmpCpd.evaluate()
+            EmpCpd.EID = 'E' + str(ii)
+            EmpCpd.get_mzFeature_of_highest_statistic( self.rowDict )
+            ii += 1
+            if self.data.paradict['force_primary_ion']:
+                if EmpCpd.primary_ion_present:
+                    ListOfEmpiricalCompounds.append(EmpCpd)
+            else:
+                ListOfEmpiricalCompounds.append(EmpCpd)
+        
+        print ("Got %d final ListOfEmpiricalCompounds\n\n" %len(ListOfEmpiricalCompounds))
         return ListOfEmpiricalCompounds
 
+    def mergeEmpericalCompounds(self):
+        '''
+        :return:
+        '''
         
+        # for E in self.ListOfEmpiricalCompounds['mummichog_1250251']:
+        #     if any(x == 'CE0853' for x in E.compounds):
+        #         print("EID %s -- row_ion %s", (E.EID, E.str_row_ion))
+        
+        ListOfEmpiricalCompoundsMerge = [ ]
+        for key in self.data.filekeys:
+            ListOfEmpiricalCompoundsMerge += (self.ListOfEmpiricalCompounds[key])
+        
+
+        uniqueCompounds = {}
+        for i in range(0, len(ListOfEmpiricalCompoundsMerge)):  ## last thing in the i loop we do !
+            # for CMP in ECmerge.compounds[i]:
+            for CMP in ListOfEmpiricalCompoundsMerge[i].compounds:
+                if uniqueCompounds.get(CMP):
+                    uniqueCompounds[CMP].append(i)
+                else:
+                    uniqueCompounds[CMP] = []
+                    uniqueCompounds[CMP] = [i]
+        ##
+        finalEmpiricalCompounds = []
+        seenIndexMerge = []
+        for CMP in uniqueCompounds.keys():
+            ## go throught uniqueCompounds as this is my merger list
+            ## note this doesn't sort out the chosen_compounds which would be lost currently Nov 7
+            if [value for value in seenIndexMerge if value in uniqueCompounds[CMP]]:
+                continue ## this should then skip
+
+            if len(CMP) == 1:
+                finalEmpiricalCompounds.append(ListOfEmpiricalCompoundsMerge[uniqueCompounds[CMP][0]])
+                seenIndexMerge.append(uniqueCompounds[CMP][0])
+            else:
+                tempFinalEClist = ListOfEmpiricalCompoundsMerge[uniqueCompounds[CMP][0]]
+                for i in range(1, len(uniqueCompounds[CMP])):
+                    tempFinalEClist.mergeCompound(ListOfEmpiricalCompoundsMerge[uniqueCompounds[CMP][i]])
+                    seenIndexMerge.append(uniqueCompounds[CMP][i])
+                finalEmpiricalCompounds.append(tempFinalEClist)
+
+        self.ListOfEmpiricalCompounds = finalEmpiricalCompounds
+
+
+
+# for i in range(0, len(ListOfEmpiricalCompoundsMerge)):
+#     ECmerge = ListOfEmpiricalCompoundsMerge[i]
+#
+#     if len(ECmerge.chosen_compounds) > 0:
+#         for k in range(0, len(finalEmpiricalCompounds)):
+#             ## have we seen the compound before ?
+#             ## if so merge else append and move on
+#             if finalEmpiricalCompounds[ k ].chosen_compounds == ECmerge.chosen_compounds:
+#                 ## merge these two lists
+#                 finalEmpiricalCompounds[k].mergeCompound(ECmerge)
+#                 uniqueCompounds[ i ] = ECmerge.compounds
+#                 continue
+#             else:
+#                 finalEmpiricalCompounds.append(ECmerge)
+#                 uniqueCompounds[ i ] = ECmerge.compounds
+#                 continue
