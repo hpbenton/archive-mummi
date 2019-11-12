@@ -71,6 +71,10 @@ def uniqueList(list1, list2):
     x=np.unique(x)
     return(x.tolist())
 
+def get_longest_length(x):
+    return max([len(n) for n in x.values()])
+
+
 # accuracy of the MS instrument
 def mz_tolerance(mz, MZerr):
     '''
@@ -116,7 +120,7 @@ wanted_adduct_list = {
                     ],
     'negative': ['M-H[-]','M-2H[2-]','M(C13)-H[-]','M(S34)-H[-]','M(Cl37)-H[-]',
                     'M+Na-2H[-]','M+K-2H[-]','M-H2O-H[-]','M+Cl[-]','M+Cl37[-]',
-                    'M+Br[-]','M+Br81[-]','M+ACN-H[-]','M+HCOO[-]','M+CH3COO[-]','M-H+O[-]'
+                    'M+ACN-H[-]','M+HCOO[-]','M+CH3COO[-]','M-H+O[-]'
     
                     ],
 
@@ -204,8 +208,6 @@ def adduct_function(mw, mode):
                (mw - 18.0106 - PROTON, 'M-H2O-H[-]'),
                (mw + 34.9689, 'M+Cl[-]'),
                (mw + 36.9659, 'M+Cl37[-]'),
-               (mw + 78.9183, 'M+Br[-]'),
-               (mw + 80.9163, 'M+Br81[-]'),
                (mw + 2*12 + 3*1.007825 + 14.00307 - PROTON, 'M+ACN-H[-]'),
                (mw + 1.007825 + 12 + 2*15.99491, 'M+HCOO[-]'),
                (mw + 3*1.007825 + 2*12 + 2*15.99491, 'M+CH3COO[-]'),

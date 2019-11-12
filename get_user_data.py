@@ -571,10 +571,14 @@ class DataMeetModel:
             self.rtime_tolerance[key] =  self.data.max_retention_time[key] * RETENTION_TIME_TOLERANCE_FRAC
         
         # major data structures
-        IonCpdTree = []
+        IonCpdTree = {k: {} for k in userData.filekeys}
         for k in range(0, len(self.data.filekeys)):
-            IonCpdTree += self.__build_cpdindex__( self.data.paradict['mode'][k] )
-        self.IonCpdTree = IonCpdTree
+            key=self.data.filekeys[k]
+            IonCpdTree[key] = self.__build_cpdindex__( self.data.paradict['mode'][k] )
+
+
+        self.IonCpdTree = IonCpdTree#Final
+        # del IonCpdTreeFinal, maxLenIonTree
         self.rowDict = self.__build_rowindex__( self.data.ListOfMassFeatures )
         
         self.ListOfEmpiricalCompounds = {k: [ ] for k in self.data.filekeys}
@@ -663,12 +667,10 @@ class DataMeetModel:
             * Compounds to mzFeatures
         Then, 
             * EmpiricalCompounds are determined within Compound matched mzFeatures, considering retention time.
-        
-        
         '''
         self.__match_to_mzFeatures__(filekey) ## matched_Ions still empty
         self.cpd2mzFeatures[filekey] = self.index_Compounds_to_mzFeatures(filekey)
-        return self.compound_to_EmpiricalCompounds()
+        return self.compound_to_EmpiricalCompounds(filekey)
         
 
     def __match_to_mzFeatures__(self, filekey):
@@ -677,11 +679,10 @@ class DataMeetModel:
         '''
         # for key self.data.filekeys:
         for M in self.data.ListOfMassFeatures[filekey]:
-            M.matched_Ions = self.__match_mz_ion__(M.mz, self.IonCpdTree)
-        #     print("M.row %s" % M.row_number)
-        #
-        # print("What do we have hree")
+            M.matched_Ions = self.__match_mz_ion__(M.mz, self.IonCpdTree, filekey)
+        # print("M.row %s" % M.row_number)
         
+    
     def index_Compounds_to_mzFeatures(self, filekey):
         '''
         compound ID - mzFeatures
@@ -690,8 +691,6 @@ class DataMeetModel:
         cpd2mzFeatures[compoundID] = [(ion, mass, mzFeature), ...]
         '''
         cpd2mzFeatures = {}
-        # for key in self.data.filekeys:
-            # key= self.data.filekeys[k]
         ListOfMassFeatures = self.data.ListOfMassFeatures[ filekey ]
         for M in ListOfMassFeatures:
             # ii=0
@@ -710,7 +709,7 @@ class DataMeetModel:
         ## this makes this a complex dict of dict
         
         
-    def __match_mz_ion__(self, mz, IonCpdTree):
+    def __match_mz_ion__(self, mz, IonCpdTree, key):
         '''
         L: (compoundID, ion, mass)
         return ions matched to m/z
@@ -719,40 +718,29 @@ class DataMeetModel:
         matched = []
         mztol = mz_tolerance(mz, self.data.paradict['instrument'])
         for ii in [floor-1, floor, floor+1]:
-            for L in IonCpdTree[ii]:
+            for L in IonCpdTree[key][ii]:
                 if abs(L[2]-mz) < mztol:
                     matched.append( L )
-                    # print("Single match.. %s\t" %(L[0])),
+                    # print("Single match.. %s @ %s == mz-%d" %(L[0], L[1], L[2]) )
         return matched
 
-    def compound_to_EmpiricalCompounds(self):
+    def compound_to_EmpiricalCompounds(self, key):
         '''
         EmpiricalCompounds are constructed in this function.
         First splitting features matching to same compound by retention time;
         then merging those matched to same m/z features.
         run after self.index_Compounds_to_mzFeatures()
         '''
-        totalLen = 0
-        mergeLen = 0
-        ListOfEmpiricalCompounds = {k: [] for k in self.data.filekeys} # []
-        outputListOfEmpCompound = {k: [] for k in self.data.filekeys}
-        for key in self.data.filekeys:
-            # print("ky is %d" %ky)
-            for k,v in self.cpd2mzFeatures[key].items():
-                # print(str(ii) + " ")
-                ListOfEmpiricalCompounds[key] += self.__split_Compound__(k, v, self.rtime_tolerance, key)
-                # getting inital instances of EmpiricalCompound
-                
-            # print("Looking here to see duplicates !! ")
-            # print ("Got %d ListOfEmpiricalCompounds" %(len(ListOfEmpiricalCompounds[key]) ))
-            totalLen = len(ListOfEmpiricalCompounds[key]) + totalLen
-            # merge compounds that are not distinguished by analytical platform, e.g. isobaric
-            outputListOfEmpCompound[key]=self.__merge_EmpiricalCompounds__(ListOfEmpiricalCompounds)
-            mergeLen = len(outputListOfEmpCompound[key]) + mergeLen
-        #
-        print ("Got %d ListOfEmpiricalCompounds" %totalLen )
-        print ("Got %d merged ListOfEmpiricalCompounds" %mergeLen)
-        return outputListOfEmpCompound
+        ListOfEmpiricalCompounds = [ ]
+        for k, v in self.cpd2mzFeatures[key].items():
+            ListOfEmpiricalCompounds += self.__split_Compound__(k, v, self.rtime_tolerance, key)
+            # getting inital instances of EmpiricalCompound
+
+        print ("Got %d ListOfEmpiricalCompounds" % len(ListOfEmpiricalCompounds))
+
+        # merge compounds that are not distinguished by analytical platform, e.g. isobaric
+        outputEC = self.__merge_EmpiricalCompounds__(ListOfEmpiricalCompounds)
+        return outputEC
         
         
     def __split_Compound__(self, compoundID, list_match_mzFeatures, rtime_tolerance, filekey):
@@ -795,15 +783,13 @@ class DataMeetModel:
         Because EmpiricalCompounds.str_row_ion uses mzFeatures sorted by row_number, this is 
         '''
         mydict = {}
-        for k in range(0, len(self.data.filekeys)):
-            key = self.data.filekeys[ k ]
-            for L in ListOfEmpiricalCompounds[key]:
-                if mydict.has_key(L.str_row_ion):
-                    mydict[ L.str_row_ion ].join(L)
-                else:
-                    mydict[ L.str_row_ion ]= L
+        for L in ListOfEmpiricalCompounds:
+            if mydict.has_key(L.str_row_ion):
+                mydict[ L.str_row_ion ].join(L)
+            else:
+                mydict[ L.str_row_ion ]= L
         
-        # print ("Got %d merged ListOfEmpiricalCompounds\n\n" %(len(mydict)) )
+        print ("Got %d merged ListOfEmpiricalCompounds\n\n" %(len(mydict)) )
         ## moved to parent function Compound_to_EmpiricalCompounds
         return mydict.values()
 
@@ -855,7 +841,7 @@ class DataMeetModel:
         ListOfEmpiricalCompounds, ii = [ ], 1
         # EmpCpdDict=self.__match_all_to_all__()
         # for k in range(0, len(self.data.filekeys)):
-        for EmpCpd in self.__match_all_to_all__(key)[key]:
+        for EmpCpd in self.__match_all_to_all__(key):
             EmpCpd.evaluate()
             EmpCpd.EID = 'E' + str(ii)
             EmpCpd.get_mzFeature_of_highest_statistic( self.rowDict )
