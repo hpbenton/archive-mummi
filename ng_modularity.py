@@ -243,7 +243,7 @@ class network:
         '''
         g as a graph instance from nx.graph
         '''
-        self.nodes, self.edges = g.nodes(), g.edges()
+        self.nodes, self.edges = list(g.nodes()), list(g.edges())
 
     def read_gml_network(self, infile):
         (self.nodes, self.edges) = self.read_gml(infile)

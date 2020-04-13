@@ -205,10 +205,14 @@ class Mmodule:
         shave off nodes that do not connect seeds, i.e.
         any node with degree = 1 and is not a seed, iteratively.
         '''
+        if nx.is_frozen(self.graph):
+            gg = self.graph
+            self.graph = gg ## not sure why graph gets frozen but unfreeze it
         nonseeds = [x for x in self.graph.nodes() if x not in seed_cpds]
         excessive = [x for x in nonseeds if self.graph.degree(x)==1]
         while excessive:
-            for x in excessive: self.graph.remove_node(x)
+            for x in excessive:
+                self.graph.remove_node(x)
             nonseeds = [x for x in self.graph.nodes() if x not in seed_cpds]
             excessive = [x for x in nonseeds if self.graph.degree(x)==1]
 
@@ -217,8 +221,9 @@ class Mmodule:
         '''
         create an identifier using nodes in sorted order
         '''
-        Nodes = self.graph.nodes()
+        Nodes = list(self.graph.nodes())
         Nodes.sort()
+        #Nodes.order()
         return ''.join(Nodes)
 
     def export_network_txt(self, met_model, filename):
